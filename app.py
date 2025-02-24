@@ -1,4 +1,3 @@
-
 import streamlit as st
 from supabase import create_client, Client
 import os
@@ -6,22 +5,19 @@ import re
 from dotenv import load_dotenv
 from datetime import datetime
 import uuid
-import google.generativeai as genai
+import requests
+import speech_recognition as sr
 import time
+import json  # Import json module
 
-# Constants remain the same
+# Constants
 EMAIL_REGEX = r'^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$'
 SAKHI_IMAGE_PATH = "sakhi_logo-wout-bg.png"
 
-# Initialize Gemini with retry logic
+# Initialize environment variables
 load_dotenv()
-GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
-genai.configure(api_key=GOOGLE_API_KEY)
 
-SYSTEM_PROMPT = """You are SAKHI AI, a compassionate and understanding AI assistant focused on mental health and well-being. 
-Your goal is to provide supportive, empathetic responses while maintaining appropriate boundaries and encouraging professional help when needed."""
-
-# Questionnaire Configuration remains the same
+# Questionnaire Configuration
 QUESTIONS_CONFIG = {
     "AGE": {
         "options": ["Less than 20", "21-35", "36-50", "51 or more"],
@@ -47,32 +43,6 @@ for question in DEFAULT_QUESTIONS:
         "options": list(range(11)),
         "type": "numeric"
     }
-
-class GeminiHandler:
-    def __init__(self):
-        self.model = genai.GenerativeModel('gemini-pro')
-        self.chat = self.model.start_chat(history=[])
-        self.setup_context()
-        self.max_retries = 3
-        self.retry_delay = 1  # seconds
-
-    def setup_context(self):
-        try:
-            self.chat.send_message(SYSTEM_PROMPT)
-        except Exception as e:
-            print(f"Error setting up context: {e}")
-
-    def get_response(self, user_message):
-        retries = 0
-        while retries < self.max_retries:
-            try:
-                response = self.chat.send_message(user_message)
-                return response.text
-            except Exception as e:
-                retries += 1
-                if retries == self.max_retries:
-                    return f"I apologize, but I'm currently experiencing technical difficulties. Please try again in a few moments."
-                time.sleep(self.retry_delay * retries)
 
 class SupabaseClient:
     def __init__(self):
@@ -241,47 +211,38 @@ class QuestionnaireUI:
     def __init__(self, client):
         self.client = client
         self.questions = list(QUESTIONS_CONFIG.keys())
+        self.n8n_webhook_url = "https://hacksync.app.n8n.cloud/webhook/1c370d0b-2291-4ed4-a9de-e058373b93d4"
 
     def render_question(self, question):
         st.subheader(f"{question}:")
         config = QUESTIONS_CONFIG[question]
-        response = st.radio(
-            "",
-            config["options"],
-            index=None,
-            key=f"radio_{question}"
-        )
+        if config["type"] == "categorical":
+            response = st.radio(
+                "",
+                config["options"],
+                index=None,
+                key=f"radio_{question}"
+            )
+        elif config["type"] == "numeric":
+            response = st.slider(
+                "",
+                min_value=min(config["options"]),
+                max_value=max(config["options"]),
+                key=f"slider_{question}"
+            )
         
         if response is not None:
             st.session_state["responses"][question] = response
 
     def render(self):
-        if "current_question" not in st.session_state:
-            st.session_state.current_question = 0
+        if "responses" not in st.session_state:
             st.session_state.responses = {}
 
-        current_index = st.session_state.current_question
-        self.render_question(self.questions[current_index])
+        for question in self.questions:
+            self.render_question(question)
 
-        # Navigation buttons
-        col1, col2 = st.columns([1, 1])
-        with col1:
-            if current_index > 0:
-                if st.button("Previous"):
-                    st.session_state.current_question -= 1
-                    st.rerun()
-
-        with col2:
-            if current_index < len(self.questions) - 1:
-                if st.button("Next"):
-                    if self.questions[current_index] not in st.session_state.responses:
-                        st.error("Please select an option before proceeding.")
-                    else:
-                        st.session_state.current_question += 1
-                        st.rerun()
-            else:
-                if st.button("Submit"):
-                    self.handle_submit()
+        if st.button("Submit"):
+            self.handle_submit()
 
     def handle_submit(self):
         if len(st.session_state.responses) == len(self.questions):
@@ -289,8 +250,28 @@ class QuestionnaireUI:
                 st.session_state.user_id,
                 st.session_state.responses
             ):
-                st.session_state.questionnaire_completed = True
-                st.success("Questionnaire submitted successfully!")
+                # Send responses to n8n webhook
+                try:
+                    response = requests.post(
+                        self.n8n_webhook_url, 
+                        json=st.session_state.responses, 
+                        headers={"Content-Type": "application/json"}
+                    )
+
+                    if response.status_code == 200:
+                        webhook_response = response.text  # Accept text response instead of JSON
+                        st.session_state.recommendations = webhook_response  # Store full response as text
+                        
+                        st.session_state.questionnaire_completed = True
+                        st.success("Questionnaire submitted successfully!")
+                    else:
+                        st.error(f"Failed to send responses to webhook. Status code: {response.status_code}")
+                        st.error(f"Response content: {response.text}")  # Debugging purpose
+                        return
+                except Exception as e:
+                    st.error(f"Error sending responses to webhook: {str(e)}")
+                    return
+
                 st.session_state.responses = {}
                 st.session_state.current_question = 0
                 time.sleep(2)  # Give user time to see success message
@@ -300,10 +281,19 @@ class QuestionnaireUI:
         else:
             st.error("Please answer all questions before submitting.")
 
+    def display_ai_response(self):
+        if "recommendations" in st.session_state:
+            st.subheader("Your Personalized AI Analysis")
+            st.write(st.session_state.recommendations)  # Show AI text as received
+
 class ChatUI:
     def __init__(self, supabase_client):
         self.supabase_client = supabase_client
-        self.gemini_handler = GeminiHandler()
+        self.n8n_webhook_url = "https://hacksync.app.n8n.cloud/webhook/2869ee04-29a7-401a-b7c7-e7277c3048e5"
+        if "voice_input" not in st.session_state:
+            st.session_state.voice_input = ""
+        if "current_message" not in st.session_state:
+            st.session_state.current_message = ""
 
     def render_message(self, message, is_user=False):
         message_container = st.container()
@@ -336,49 +326,154 @@ class ChatUI:
                 background-color: #007AFF;
                 color: white;
             }
+            .chat-container {
+                display: flex;
+                flex-direction: column-reverse;
+                height: calc(100vh - 200px);
+                overflow-y: auto;
+                padding-bottom: 60px;
+            }
+            .fixed-header {
+                position: fixed;
+                top: 0;
+                width: 100%;
+                background-color: white;
+                z-index: 1000;
+                padding: 10px 0;
+            }
+            .fixed-footer {
+                position: fixed;
+                bottom: 0;
+                width: 100%;
+                background-color: white;
+                z-index: 1000;
+                padding: 10px 0;
+            }
             </style>
             """, unsafe_allow_html=True)
 
+        # Fixed header
+        st.markdown('<div class="fixed-header"><h2>Chat with SAKHI</h2></div>', unsafe_allow_html=True)
+
         # Display chat history
-        chat_history = self.supabase_client.get_chat_history(st.session_state.user_id)
-        for message in chat_history:
-            self.render_message(message["message"], message["role"] == "user")
+        if "chat_history" not in st.session_state:
+            try:
+                st.session_state.chat_history = self.supabase_client.get_chat_history(
+                    st.session_state.user_id
+                )
+            except Exception as e:
+                st.session_state.chat_history = []
+                st.error(f"Failed to load chat history: {str(e)}")
 
-        # Chat input
-        col1, col2 = st.columns([5, 1])
+        # Display messages
+        with st.container():
+            st.markdown('<div class="chat-container">', unsafe_allow_html=True)
+            for message in st.session_state.chat_history:
+                self.render_message(
+                    message["message"],
+                    message["role"] == "user"
+                )
+            st.markdown('</div>', unsafe_allow_html=True)
+
+        # Fixed footer with voice input handling
+        st.markdown('<div class="fixed-footer">', unsafe_allow_html=True)
+        col1, col2, col3, col4 = st.columns([4, 1, 1, 1])
+        
         with col1:
-            user_input = st.text_input("Type your message...", key="chat_input")
-        with col2:
-            send_button = st.button("Send")
+            # Use session state for input field
+            if st.session_state.voice_input:
+                st.session_state.current_message = st.session_state.voice_input
+                user_input = st.text_input(
+                    "Type your message...", 
+                    value=st.session_state.current_message,
+                    key="chat_input"
+                )
+                st.session_state.voice_input = ""  # Clear voice input after setting current message
+            else:
+                user_input = st.text_input(
+                    "Type your message...", 
+                    value=st.session_state.current_message,
+                    key="chat_input"
+                )
+            st.session_state.current_message = user_input
 
-        if send_button and user_input:
+        with col2:
+            if st.button("Send"):
+                if st.session_state.current_message.strip():
+                    self.handle_send_message(st.session_state.current_message)
+                    st.session_state.current_message = ""  # Clear the message after sending
+                    st.rerun()
+        
+        with col3:
+            if st.button("🎤 Voice"):
+                self.handle_voice_chat()
+        
+        with col4:
+            if st.button("Logout"):
+                st.session_state.clear()
+                st.rerun()
+
+        st.markdown('</div>', unsafe_allow_html=True)
+
+    def handle_send_message(self, user_input):
+        try:
             # Save user message
-            if self.supabase_client.save_chat_message(
+            self.supabase_client.save_chat_message(
                 st.session_state.user_id,
                 user_input,
                 "user"
-            ):
-                # Get AI response
-                ai_response = self.gemini_handler.get_response(user_input)
-                
-                # Save AI response
-                if self.supabase_client.save_chat_message(
-                    st.session_state.user_id,
-                    ai_response,
-                    "assistant"
-                ):
-                    st.rerun()
-                else:
-                    st.error("Failed to save AI response. Please try again.")
+            )
+            
+            # Send message to n8n Webhook
+            response = requests.post(self.n8n_webhook_url, data={"message": user_input})
+
+            if response.status_code == 200:
+                ai_response = response.text
             else:
-                st.error("Failed to send message. Please try again.")
+                ai_response = "Error connecting to AI Agent."
+
+            # Save AI response
+            self.supabase_client.save_chat_message(
+                st.session_state.user_id,
+                ai_response,
+                "assistant"
+            )
+            
+            # Update chat history
+            st.session_state.chat_history = self.supabase_client.get_chat_history(
+                st.session_state.user_id
+            )
+            st.rerun()
+        except Exception as e:
+            st.error(f"Failed to send message: {str(e)}")
+
+    def handle_voice_chat(self):
+        try:
+            recognizer = sr.Recognizer()
+            with sr.Microphone() as source:
+                st.info("Listening... Speak now.")
+                audio = recognizer.listen(source, timeout=5)
+                st.info("Processing speech...")
+
+            text = recognizer.recognize_google(audio)
+            st.session_state.voice_input = text
+            st.rerun()
+            
+        except sr.WaitTimeoutError:
+            st.error("No speech detected. Please try again.")
+        except sr.UnknownValueError:
+            st.error("Could not understand the audio. Please try again.")
+        except sr.RequestError as e:
+            st.error(f"Could not process the audio: {str(e)}")
+        except Exception as e:
+            st.error(f"An error occurred: {str(e)}")
 
 def main():
     st.set_page_config(page_title="SAKHI AI", layout="centered")
     
     # Initialize Supabase client
     supabase_client = SupabaseClient()
-    
+
     if "logged_in" not in st.session_state:
         auth_ui = AuthUI(supabase_client)
         auth_ui.render()
@@ -389,16 +484,24 @@ def main():
             st.write("Please complete this questionnaire before accessing the chat.")
             questionnaire_ui = QuestionnaireUI(supabase_client)
             questionnaire_ui.render()
-        else:
+        
+        elif "recommendations" in st.session_state:
+            st.title("SAKHI AI Analysis")
+            
+            # Display AI-generated Analysis (Stress Level + Recommendations together)
+            st.subheader("Your Personalized AI Analysis")
+            st.write(st.session_state.recommendations)  # Show AI text as received
+
+            # Add a button to start chatting
+            st.markdown("<br>", unsafe_allow_html=True)  # Add spacing
+            if st.button("🗣 Talk with SAKHI...", key="start_chat_button"):
+                st.session_state.show_chat = True  # Activate chat
+            
+        # Show chat only when user clicks the button
+        if st.session_state.get("show_chat", False):
             st.title("Chat with SAKHI")
             chat_ui = ChatUI(supabase_client)
             chat_ui.render()
 
-        # Logout button
-        if st.button("Logout", key="logout_btn"):
-            st.session_state.clear()
-            st.rerun()
-
 if __name__ == "__main__":
     main()
-
