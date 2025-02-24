@@ -186,7 +186,7 @@ class AuthUI:
                     "questionnaire_completed": has_completed
                 })
                 st.success(f"Welcome back, {email}!")
-                st.rerun()
+                st.rerun()  # Remove the automatic redirect to chat
         except Exception as e:
             st.error(str(e))
 
@@ -467,12 +467,37 @@ class ChatUI:
             st.error(f"Could not process the audio: {str(e)}")
         except Exception as e:
             st.error(f"An error occurred: {str(e)}")
+    
+    def __init__(self, supabase_client):
+        self.supabase_client = supabase_client
+        self.n8n_webhook_url = "https://hacksync.app.n8n.cloud/webhook/2869ee04-29a7-401a-b7c7-e7277c3048e5"
+        
+        # Initialize session state variables
+        if "messages" not in st.session_state:
+            st.session_state.messages = []
+        if "voice_input" not in st.session_state:
+            st.session_state.voice_input = ""
+        if "current_message" not in st.session_state:
+            st.session_state.current_message = ""
 
 def main():
     st.set_page_config(page_title="SAKHI AI", layout="centered")
     
     # Initialize Supabase client
     supabase_client = SupabaseClient()
+
+    if "show_chat" not in st.session_state:
+        st.session_state.show_chat = False
+    # Check for chat page
+    if "page" in st.query_params and st.query_params["page"] == "chat":
+        if st.session_state.get("logged_in") and st.session_state.get("questionnaire_completed"):
+            chat_ui = ChatUI(supabase_client)
+            chat_ui.render()
+            return
+        else:
+            st.error("Please log in and complete the questionnaire first.")
+            st.query_params.clear()
+            st.rerun()
 
     if "logged_in" not in st.session_state:
         auth_ui = AuthUI(supabase_client)
@@ -488,20 +513,54 @@ def main():
         elif "recommendations" in st.session_state:
             st.title("SAKHI AI Analysis")
             
-            # Display AI-generated Analysis (Stress Level + Recommendations together)
+            # Display AI-generated Analysis
             st.subheader("Your Personalized AI Analysis")
-            st.write(st.session_state.recommendations)  # Show AI text as received
+            st.write(st.session_state.recommendations)
 
             # Add a button to start chatting
-            st.markdown("<br>", unsafe_allow_html=True)  # Add spacing
+            st.markdown("<br>", unsafe_allow_html=True)
             if st.button("🗣 Talk with SAKHI...", key="start_chat_button"):
-                st.session_state.show_chat = True  # Activate chat
+                st.session_state["show_chat"] = True
+                st.query_params["page"] = "chat"
+                st.rerun()
+        
+        else:
+            # If questionnaire is completed but no recommendations yet,
+            # fetch the responses and trigger the webhook
+            st.title("Well-being Analysis")
             
-        # Show chat only when user clicks the button
-        if st.session_state.get("show_chat", False):
-            st.title("Chat with SAKHI")
-            chat_ui = ChatUI(supabase_client)
-            chat_ui.render()
+            try:
+                # Get the latest questionnaire response
+                response = supabase_client.client.table("questionnaire_responses") \
+                    .select("*") \
+                    .eq("user_id", st.session_state.user_id) \
+                    .order("timestamp", desc=True) \
+                    .limit(1) \
+                    .execute()
+                
+                if response and response.data:
+                    # Send to webhook for analysis
+                    webhook_url = "https://hacksync.app.n8n.cloud/webhook/1c370d0b-2291-4ed4-a9de-e058373b93d4"
+                    webhook_response = requests.post(
+                        webhook_url,
+                        json=response.data[0]["responses"],
+                        headers={"Content-Type": "application/json"}
+                    )
+                    
+                    if webhook_response.status_code == 200:
+                        st.session_state.recommendations = webhook_response.text
+                        st.rerun()
+                    else:
+                        st.error("Failed to generate analysis. Please try again later.")
+                else:
+                    st.error("Could not find questionnaire responses. Please retake the questionnaire.")
+                    st.session_state.questionnaire_completed = False
+                    time.sleep(2)
+                    st.rerun()
+                    
+            except Exception as e:
+                st.error(f"An error occurred while loading your analysis: {str(e)}")
+                st.button("Try Again", on_click=lambda: st.rerun())
 
 if __name__ == "__main__":
     main()
