@@ -1,0 +1,294 @@
+{
+  "name": "SAKHI Chatbot",
+  "nodes": [
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=You are SAKHI, an advanced Personal Life and Social Engagement AI Assistant, designed to help users maintain a healthy balance between personal life, social interactions, and professional commitments. Your mission is to reduce cognitive overload, enhance well-being, and foster meaningful connections through intelligent insights and tailored recommendations.\n\nThe user's input is: {{ $('Webhook').item.json.body.message }}.\n\nSAKHI leverages deep learning models to analyze user behavior, mood, social engagement patterns, and time management habits. You assess structured data like calendar events and unstructured inputs like conversations, helping users optimize their daily routines. Your primary focus is:\n\n- Predicting & Managing Cognitive Overload: Detect stress triggers and suggest real-time adjustments (e.g., rescheduling tasks, recommending breaks, optimizing workload).\n\n- Enhancing Social Engagement: Suggesting the best times for meaningful interactions with friends, family, and colleagues based on user behavior and emotional state.\n\n- Personalized Scheduling: Dynamically adjusting work, socializing, and self-care activities based on energy levels, preferences, and personal commitments.\n\n- Emotional & Social Well-being Insights: Using NLP and sentiment analysis to detect user moods and provide tailored well-being recommendations.\n\n- Conversational & Assistive Role: Acting as a proactive and interactive companion, capable of answering user queries about their schedules, recommending activities, and providing mental wellness guidance.\n\n🔹 The user has already gone through an onboarding questionnaire where their stress level was assessed, and personalized AI recommendations were generated. Keep this context in mind while conversing.\n\n🔹 Your tone should be empathetic, proactive, and insightful—offering actionable suggestions that help users feel more in control of their personal and social lives.\n\n🔹 If the user seeks guidance on managing stress, improving social connections, or optimizing their daily schedule, provide clear and constructive recommendations.\n\n🔹 Keep responses engaging and user-friendly, ensuring they are actionable, motivating, and realistic. Always personalize suggestions based on the user’s well-being profile and conversation history.\n\nThe session id for the chat is:  {{ $json.headers['cf-ray'] }} ( don't show it just for reference)",
+        "hasOutputParser": true,
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.7,
+      "position": [
+        660,
+        0
+      ],
+      "id": "7b064a1b-8a42-4ea3-a696-4928b8e09540",
+      "name": "AI Agent"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGroq",
+      "typeVersion": 1,
+      "position": [
+        620,
+        240
+      ],
+      "id": "4c623ad6-fbb5-462b-85e1-4bc00f6c33ec",
+      "name": "Groq Chat Model",
+      "credentials": {
+        "groqApi": {
+          "id": "9VczyN0bumAtdOrS",
+          "name": "Groq account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "tableId": "users"
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        1180,
+        360
+      ],
+      "id": "6c7678eb-1eff-4c32-be69-10286c91819e",
+      "name": "Supabase",
+      "credentials": {
+        "supabaseApi": {
+          "id": "abnR08xlIp2iRCTW",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "2869ee04-29a7-401a-b7c7-e7277c3048e5",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        360,
+        0
+      ],
+      "id": "850ecc5f-b31c-44d3-8c6d-9bc2b1c81393",
+      "name": "Webhook",
+      "webhookId": "2869ee04-29a7-401a-b7c7-e7277c3048e5"
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "={{ $json.output }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1240,
+        -40
+      ],
+      "id": "733531a0-cd13-4585-b8b6-63ef35e5dc71",
+      "name": "Respond to Webhook"
+    },
+    {
+      "parameters": {
+        "mode": "retrieve-as-tool",
+        "toolName": "user_knowledge_base",
+        "toolDescription": "Work with understanding the context from the user data",
+        "tableName": {
+          "__rl": true,
+          "value": "chat_messages",
+          "mode": "list",
+          "cachedResultName": "chat_messages"
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.vectorStoreSupabase",
+      "typeVersion": 1,
+      "position": [
+        160,
+        340
+      ],
+      "id": "f02f59e5-c08e-4150-851d-85e08d321f2a",
+      "name": "Supabase Vector Store",
+      "credentials": {
+        "supabaseApi": {
+          "id": "abnR08xlIp2iRCTW",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "type": "@n8n/n8n-nodes-langchain.embeddingsCohere",
+      "typeVersion": 1,
+      "position": [
+        240,
+        560
+      ],
+      "id": "c373c5d8-4404-40b3-a2ab-7cbdcd091419",
+      "name": "Embeddings Cohere",
+      "credentials": {
+        "cohereApi": {
+          "id": "8MjMmd2c4ZFT6rM3",
+          "name": "CohereApi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "f1fac7a8-5317-4587-ae27-f925e97d4bc0",
+              "name": "session_id",
+              "value": "={{ $json.headers['cf-connecting-ip'] }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        100,
+        120
+      ],
+      "id": "65fbb0e9-ed77-47cc-99d6-c8f389e7a993",
+      "name": "Edit Fields"
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "chat_messages",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "user_id"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        1240,
+        140
+      ],
+      "id": "07739eef-aea6-4a2d-8850-7a81bb20313c",
+      "name": "Supabase1",
+      "credentials": {
+        "supabaseApi": {
+          "id": "abnR08xlIp2iRCTW",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chatTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        400,
+        140
+      ],
+      "id": "266acfa1-2f15-4b72-babf-d26e56ed996c",
+      "name": "When chat message received",
+      "webhookId": "888804d7-c7ea-425f-8406-2ad79e97efa1"
+    },
+    {
+      "parameters": {},
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.3,
+      "position": [
+        760,
+        280
+      ],
+      "id": "410a3200-ca25-4deb-b470-8a6335ace19b",
+      "name": "Window Buffer Memory1"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Groq Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Supabase Vector Store": {
+      "ai_tool": [
+        []
+      ]
+    },
+    "Embeddings Cohere": {
+      "ai_embedding": [
+        [
+          {
+            "node": "Supabase Vector Store",
+            "type": "ai_embedding",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields": {
+      "main": [
+        []
+      ]
+    },
+    "Supabase1": {
+      "main": [
+        []
+      ]
+    },
+    "When chat message received": {
+      "main": [
+        []
+      ]
+    },
+    "Window Buffer Memory1": {
+      "ai_memory": [
+        []
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "e3886f5a-2309-494c-8608-94bc6757be22",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "6272f7e79ed93ebfe5cbb961ea4df8aff6b32826cc845483bd48f1f1b1afd4cc"
+  },
+  "id": "vroJjte0QmLbufp6",
+  "tags": []
+}

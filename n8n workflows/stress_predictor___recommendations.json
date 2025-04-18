@@ -1,0 +1,120 @@
+{
+  "name": "stress_predictor + recommendations",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "1c370d0b-2291-4ed4-a9de-e058373b93d4",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -220,
+        -80
+      ],
+      "id": "d62332ef-87fa-4791-82fe-0aa83c48e3d6",
+      "name": "Webhook",
+      "webhookId": "1c370d0b-2291-4ed4-a9de-e058373b93d4"
+    },
+    {
+      "parameters": {
+        "agent": "conversationalAgent",
+        "promptType": "define",
+        "text": "=You are an intelligent AI assistant designed to analyze user well-being based on questionnaire inputs. Your role is to predict the user's stress level and provide personalized recommendations for improving mental well-being and overall happiness. Given the user's responses on factors like lifestyle, habits, and emotions, analyze their stress level and suggest actionable insights for reducing stress and enhancing productivity. Keep responses clear, insightful, and encouraging. Your goal is to empower users with strategies to improve their daily life and mental resilience.\n\nThe user's data is here:\nUser's age: {{ $json.body.AGE }}\nUser's gender: {{ $json.body.GENDER }}\nBMI_Range:{{ $json.body.BMI_RANGE }}\nSufficient_INCOME:{{ $json.body.SUFFICIENT_INCOME }}\nDonation (how many times do user donate time/money for good cause): {{ $json.body.DONATION }}\nFruit and Veggies (in a day):  {{ $json.body['Fruit and Veggies'] }}\nCore_Circle (no. of people close to user): {{ $json.body.CORE_CIRCLE }}\nSupporting_Others (no. of people user helps to achieve better life): {{ $json.body.SUPPORTING_OTHERS }}\nSocial_Network:{{ $json.body.SOCIAL_NETWORK }}\nAchievement (no. of recognition user received in his life): {{ $json.body.ACHIEVEMENT }}\nTodo_Completed (no. of tasks completed in a weekly todolist): {{ $json.body.TODO_COMPLETED }}\nFlow (no. of hours user is doing deep work): {{ $json.body.FLOW }}\nDaily_steps (on a scale of 0-10): {{ $json.body.DAILY_STEPS }}\nLive_Vision (how many years ahead is the user's life vision clear): {{ $json.body.LIVE_VISION }}\nSleep_Hours (daily): {{ $json.body.SLEEP_HOURS }}\nLost_Vacation(no. of days of vacation user looses every year): {{ $json.body.LOST_VACATION }}\nDaily_Shouting (how often user shouts or sulks on everybody): {{ $json.body.DAILY_SHOUTING }}\nPersonal_awards: {{ $json.body.PERSONAL_AWARDS }}\n\nPrint the stress level out of 10 based on the input and then, structure it as below:\n👉 Predicted Stress Level: X (Low / Medium / High)\n👉 Key Observations: (Brief points on what factors may contribute to stress)\n👉 Recommendations: (Personalized suggestions based on the user's input) \n\nGive the output, considering you're talking to user, i.e. use second person pronous more!",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.7,
+      "position": [
+        -40,
+        -80
+      ],
+      "id": "ab4eb5f8-7537-41ff-80e5-39e19884732c",
+      "name": "AI Agent"
+    },
+    {
+      "parameters": {
+        "model": "llama3-70b-8192",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGroq",
+      "typeVersion": 1,
+      "position": [
+        -40,
+        140
+      ],
+      "id": "613031a4-d8df-438c-a3e8-cafd2eb9fbd9",
+      "name": "Groq Chat Model",
+      "credentials": {
+        "groqApi": {
+          "id": "9VczyN0bumAtdOrS",
+          "name": "Groq account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "={{$json.output}}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        320,
+        -80
+      ],
+      "id": "1f93af12-f1dc-44fb-957f-cddee0305e1e",
+      "name": "Respond to Webhook"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Groq Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "fbffe4d9-ebd3-4f18-91e2-50cdcae544b4",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "6272f7e79ed93ebfe5cbb961ea4df8aff6b32826cc845483bd48f1f1b1afd4cc"
+  },
+  "id": "DgNgwGGzy1B7OHrw",
+  "tags": []
+}
