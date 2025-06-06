@@ -1,7 +1,3 @@
-Here's a well-structured, concise, and easy-to-understand `README.md` for your **SAKHI** project:
-
----
-
 #  **SAKHI: Social Assistant for Knowing Human Intelligence**  
 
 ### 🧠 AI-powered Assistant for Work-Life Balance  
@@ -74,6 +70,3 @@ SAKHI is an AI-powered personal assistant designed to help users maintain a **he
 
 Balancing work, personal life, and social interactions is **difficult** in today’s fast-paced world. SAKHI acts as your **personal AI assistant**, ensuring **optimal time management, stress reduction, and meaningful social interactions**.  
 
-🚀 **Try it now and take control of your well-being!**  
-
----
