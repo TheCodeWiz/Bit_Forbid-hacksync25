@@ -488,7 +488,7 @@ def main():
 
     if "show_chat" not in st.session_state:
         st.session_state.show_chat = False
-    # Check for chat page
+    # Check for chat page if it properly shows on ui or not
     if "page" in st.query_params and st.query_params["page"] == "chat":
         if st.session_state.get("logged_in") and st.session_state.get("questionnaire_completed"):
             chat_ui = ChatUI(supabase_client)
