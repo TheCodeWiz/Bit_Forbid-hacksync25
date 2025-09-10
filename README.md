@@ -62,11 +62,12 @@ SAKHI is an AI-powered personal assistant designed to help users maintain a **he
 |-----------|------|-----------------|
 | **Suraj** | AI & Backend | AI Model, FastAPI Backend |
 | **Kuldeep** | Database & Automation | SQLite Database, n8n Workflow |
-| **Manav** | Frontend | Streamlit UI, API Integration |
+| **Manav** | Frontend | Streamlit UI, API Integration, n8n Workflow |
 
 ---
 
 ## 🎉 **Why SAKHI?**  
 
 Balancing work, personal life, and social interactions is **difficult** in today’s fast-paced world. SAKHI acts as your **personal AI assistant**, ensuring **optimal time management, stress reduction, and meaningful social interactions**.  
+
 
